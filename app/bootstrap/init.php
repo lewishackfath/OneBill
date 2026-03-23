@@ -18,6 +18,7 @@ require_once APP_PATH . '/helpers/csrf_helper.php';
 require_once APP_PATH . '/helpers/auth_helper.php';
 require_once APP_PATH . '/helpers/audit_helper.php';
 require_once APP_PATH . '/helpers/client_helper.php';
+require_once APP_PATH . '/helpers/validation_helper.php';
 
 load_env_file(BASE_PATH . '/.env');
 

@@ -5,6 +5,7 @@
     </div>
     <div class="topbar__actions">
         <?php if ($authUser): ?>
+            <span class="badge"><?= e(implode(', ', $authUser['roles'] ?? [])) ?></span>
             <span class="topbar__user"><?= e($authUser['display_name'] ?? $authUser['email']) ?></span>
             <a class="button button--secondary" href="<?= e(base_url('logout.php')) ?>">Sign out</a>
         <?php endif; ?>
