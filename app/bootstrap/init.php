@@ -31,6 +31,14 @@ configure_session($appConfig['session']);
 $GLOBALS['app_config'] = $appConfig;
 $GLOBALS['db'] = make_pdo(require APP_PATH . '/config/database.php');
 
+if (is_logged_in()) {
+    refresh_authenticated_user_session();
+
+    if (is_logged_in()) {
+        initialise_current_client_context();
+    }
+}
+
 function load_env_file(string $path): void
 {
     if (!is_file($path)) {

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap/init.php';
 require_once APP_PATH . '/middleware/require_login.php';
+require_once APP_PATH . '/middleware/require_role.php';
 require_once APP_PATH . '/repositories/ClientRepository.php';
+
+require_platform_admin_or_higher();
 
 $authUser = auth_user();
 $clientRepo = new ClientRepository();

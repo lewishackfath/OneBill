@@ -11,7 +11,11 @@ final class RoleRepository
 
     public function getAll(): array
     {
-        $stmt = db()->query('SELECT id, role_key, role_name, description FROM roles ORDER BY role_name ASC');
+        $stmt = db()->query(
+            "SELECT id, role_key, role_name, description
+             FROM roles
+             ORDER BY FIELD(role_key, 'super_admin','platform_admin','client_admin','client_user','readonly'), role_name"
+        );
         return $stmt->fetchAll();
     }
 
@@ -19,12 +23,28 @@ final class RoleRepository
     {
         $roles = $authUser['roles'] ?? [];
 
-        if (in_array('super_admin', $roles, true) || in_array('platform_admin', $roles, true)) {
+        if (in_array('super_admin', $roles, true)) {
             return $this->getAll();
         }
 
+        if (in_array('platform_admin', $roles, true)) {
+            $stmt = db()->prepare(
+                "SELECT id, role_key, role_name, description
+                 FROM roles
+                 WHERE role_key IN ('client_admin','client_user','readonly')
+                 ORDER BY FIELD(role_key, 'client_admin','client_user','readonly'), role_name"
+            );
+            $stmt->execute();
+            return $stmt->fetchAll();
+        }
+
         if (in_array('client_admin', $roles, true)) {
-            $stmt = db()->prepare("SELECT id, role_key, role_name, description FROM roles WHERE role_key IN ('client_admin','client_user','readonly') ORDER BY role_name ASC");
+            $stmt = db()->prepare(
+                "SELECT id, role_key, role_name, description
+                 FROM roles
+                 WHERE role_key IN ('client_admin','client_user','readonly')
+                 ORDER BY FIELD(role_key, 'client_admin','client_user','readonly'), role_name"
+            );
             $stmt->execute();
             return $stmt->fetchAll();
         }

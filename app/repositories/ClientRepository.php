@@ -14,6 +14,33 @@ final class ClientRepository
         return (int) db()->query("SELECT COUNT(*) FROM clients WHERE status = 'active'")->fetchColumn();
     }
 
+    public function countVisibleForUser(array $authUser): int
+    {
+        if ($this->isPlatformUser($authUser)) {
+            return $this->countAll();
+        }
+
+        $stmt = db()->prepare('SELECT COUNT(*) FROM user_client_access WHERE user_id = :user_id');
+        $stmt->execute([':user_id' => (int) $authUser['id']]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function countActiveVisibleForUser(array $authUser): int
+    {
+        if ($this->isPlatformUser($authUser)) {
+            return $this->countActive();
+        }
+
+        $stmt = db()->prepare(
+            "SELECT COUNT(*)
+             FROM clients c
+             INNER JOIN user_client_access uca ON uca.client_id = c.id
+             WHERE uca.user_id = :user_id AND c.status = 'active'"
+        );
+        $stmt->execute([':user_id' => (int) $authUser['id']]);
+        return (int) $stmt->fetchColumn();
+    }
+
     public function getAll(): array
     {
         $stmt = db()->query('SELECT * FROM clients ORDER BY name ASC');

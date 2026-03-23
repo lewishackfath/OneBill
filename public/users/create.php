@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap/init.php';
 require_once APP_PATH . '/middleware/require_login.php';
+require_once APP_PATH . '/middleware/require_role.php';
 require_once APP_PATH . '/repositories/UserRepository.php';
 require_once APP_PATH . '/repositories/RoleRepository.php';
 require_once APP_PATH . '/repositories/ClientRepository.php';
 
+require_user_admin_access();
+
 $authUser = auth_user();
-if (!user_has_role(['super_admin', 'platform_admin', 'client_admin'])) {
-    http_response_code(403);
-    exit('Forbidden');
-}
 
 $userRepo = new UserRepository();
 $roleRepo = new RoleRepository();
@@ -110,7 +109,7 @@ require APP_PATH . '/includes/header.php';
 
         <section class="card section-card">
             <h2>New User</h2>
-            <p>Create a user, choose a single MVP role, and assign client access.</p>
+            <p>Create a user, assign a permitted role, and scope them to one or more allowed clients.</p>
 
             <form method="post" class="form-stack">
                 <?= csrf_input() ?>

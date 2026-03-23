@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap/init.php';
 require_once APP_PATH . '/middleware/require_login.php';
+require_once APP_PATH . '/middleware/require_role.php';
 require_once APP_PATH . '/repositories/UserRepository.php';
 
+require_user_admin_access();
+
 $authUser = auth_user();
-if (!user_has_role(['super_admin', 'platform_admin', 'client_admin'])) {
-    http_response_code(403);
-    exit('Forbidden');
-}
 
 $userRepo = new UserRepository();
 $userId = (int) ($_GET['id'] ?? 0);

@@ -15,6 +15,10 @@ final class UserRepository
         }
 
         $user['roles'] = $this->getRoleKeysForUser((int) $user['id']);
+        $user['primary_role'] = $user['roles'][0] ?? '';
+        $user['primary_role_name'] = $this->getPrimaryRoleNameForUser((int) $user['id']);
+        $user['client_access'] = $this->getClientAccess((int) $user['id']);
+        $user['accessible_client_ids'] = array_map(static fn(array $row): int => (int) $row['client_id'], $user['client_access']);
         return $user;
     }
 
@@ -34,9 +38,91 @@ final class UserRepository
         return (int) db()->query('SELECT COUNT(*) FROM users WHERE is_active = 1')->fetchColumn();
     }
 
+    public function countVisibleForUser(array $authUser): int
+    {
+        if ($this->isSuperAdmin($authUser)) {
+            return $this->countAll();
+        }
+
+        if ($this->isPlatformAdmin($authUser)) {
+            $stmt = db()->prepare(
+                "SELECT COUNT(*)
+                 FROM users u
+                 WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM user_roles ur
+                    INNER JOIN roles r ON r.id = ur.role_id
+                    WHERE ur.user_id = u.id
+                      AND r.role_key = 'super_admin'
+                 )"
+            );
+            $stmt->execute();
+            return (int) $stmt->fetchColumn();
+        }
+
+        $stmt = db()->prepare(
+            "SELECT COUNT(DISTINCT u.id)
+             FROM users u
+             INNER JOIN user_client_access target_uca ON target_uca.user_id = u.id
+             INNER JOIN user_client_access me_uca ON me_uca.client_id = target_uca.client_id
+             WHERE me_uca.user_id = :user_id
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM user_roles ur
+                    INNER JOIN roles r ON r.id = ur.role_id
+                    WHERE ur.user_id = u.id
+                      AND r.role_key IN ('super_admin', 'platform_admin')
+               )"
+        );
+        $stmt->execute([':user_id' => (int) $authUser['id']]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function countActiveVisibleForUser(array $authUser): int
+    {
+        if ($this->isSuperAdmin($authUser)) {
+            return $this->countActive();
+        }
+
+        if ($this->isPlatformAdmin($authUser)) {
+            $stmt = db()->prepare(
+                "SELECT COUNT(*)
+                 FROM users u
+                 WHERE u.is_active = 1
+                   AND NOT EXISTS (
+                        SELECT 1
+                        FROM user_roles ur
+                        INNER JOIN roles r ON r.id = ur.role_id
+                        WHERE ur.user_id = u.id
+                          AND r.role_key = 'super_admin'
+                   )"
+            );
+            $stmt->execute();
+            return (int) $stmt->fetchColumn();
+        }
+
+        $stmt = db()->prepare(
+            "SELECT COUNT(DISTINCT u.id)
+             FROM users u
+             INNER JOIN user_client_access target_uca ON target_uca.user_id = u.id
+             INNER JOIN user_client_access me_uca ON me_uca.client_id = target_uca.client_id
+             WHERE me_uca.user_id = :user_id
+               AND u.is_active = 1
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM user_roles ur
+                    INNER JOIN roles r ON r.id = ur.role_id
+                    WHERE ur.user_id = u.id
+                      AND r.role_key IN ('super_admin', 'platform_admin')
+               )"
+        );
+        $stmt->execute([':user_id' => (int) $authUser['id']]);
+        return (int) $stmt->fetchColumn();
+    }
+
     public function listVisibleForUser(array $authUser): array
     {
-        if ($this->isPlatformUser($authUser)) {
+        if ($this->isSuperAdmin($authUser)) {
             $stmt = db()->query(
                 "SELECT u.id, u.first_name, u.last_name, u.email, u.is_active, u.last_login_at,
                         COALESCE((SELECT r.role_name
@@ -45,10 +131,46 @@ final class UserRepository
                                   WHERE ur.user_id = u.id
                                   ORDER BY FIELD(r.role_key, 'super_admin','platform_admin','client_admin','client_user','readonly'), r.role_name
                                   LIMIT 1), '') AS primary_role_name,
+                        COALESCE((SELECT r.role_key
+                                  FROM user_roles ur
+                                  INNER JOIN roles r ON r.id = ur.role_id
+                                  WHERE ur.user_id = u.id
+                                  ORDER BY FIELD(r.role_key, 'super_admin','platform_admin','client_admin','client_user','readonly'), r.role_name
+                                  LIMIT 1), '') AS primary_role_key,
                         (SELECT COUNT(*) FROM user_client_access uca WHERE uca.user_id = u.id) AS client_count
                  FROM users u
                  ORDER BY u.first_name ASC, u.last_name ASC, u.email ASC"
             );
+            return $stmt->fetchAll();
+        }
+
+        if ($this->isPlatformAdmin($authUser)) {
+            $stmt = db()->prepare(
+                "SELECT u.id, u.first_name, u.last_name, u.email, u.is_active, u.last_login_at,
+                        COALESCE((SELECT r.role_name
+                                  FROM user_roles ur
+                                  INNER JOIN roles r ON r.id = ur.role_id
+                                  WHERE ur.user_id = u.id
+                                  ORDER BY FIELD(r.role_key, 'super_admin','platform_admin','client_admin','client_user','readonly'), r.role_name
+                                  LIMIT 1), '') AS primary_role_name,
+                        COALESCE((SELECT r.role_key
+                                  FROM user_roles ur
+                                  INNER JOIN roles r ON r.id = ur.role_id
+                                  WHERE ur.user_id = u.id
+                                  ORDER BY FIELD(r.role_key, 'super_admin','platform_admin','client_admin','client_user','readonly'), r.role_name
+                                  LIMIT 1), '') AS primary_role_key,
+                        (SELECT COUNT(*) FROM user_client_access uca WHERE uca.user_id = u.id) AS client_count
+                 FROM users u
+                 WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM user_roles ur
+                        INNER JOIN roles r ON r.id = ur.role_id
+                        WHERE ur.user_id = u.id
+                          AND r.role_key = 'super_admin'
+                 )
+                 ORDER BY u.first_name ASC, u.last_name ASC, u.email ASC"
+            );
+            $stmt->execute();
             return $stmt->fetchAll();
         }
 
@@ -60,11 +182,24 @@ final class UserRepository
                               WHERE ur.user_id = u.id
                               ORDER BY FIELD(r.role_key, 'super_admin','platform_admin','client_admin','client_user','readonly'), r.role_name
                               LIMIT 1), '') AS primary_role_name,
+                    COALESCE((SELECT r.role_key
+                              FROM user_roles ur
+                              INNER JOIN roles r ON r.id = ur.role_id
+                              WHERE ur.user_id = u.id
+                              ORDER BY FIELD(r.role_key, 'super_admin','platform_admin','client_admin','client_user','readonly'), r.role_name
+                              LIMIT 1), '') AS primary_role_key,
                     (SELECT COUNT(*) FROM user_client_access uca2 WHERE uca2.user_id = u.id) AS client_count
              FROM users u
              INNER JOIN user_client_access target_uca ON target_uca.user_id = u.id
              INNER JOIN user_client_access me_uca ON me_uca.client_id = target_uca.client_id
              WHERE me_uca.user_id = :user_id
+               AND NOT EXISTS (
+                    SELECT 1
+                    FROM user_roles ur
+                    INNER JOIN roles r ON r.id = ur.role_id
+                    WHERE ur.user_id = u.id
+                      AND r.role_key IN ('super_admin', 'platform_admin')
+               )
              ORDER BY u.first_name ASC, u.last_name ASC, u.email ASC"
         );
         $stmt->execute([':user_id' => (int) $authUser['id']]);
@@ -207,7 +342,13 @@ final class UserRepository
 
     public function getRoleKeysForUser(int $userId): array
     {
-        $stmt = db()->prepare('SELECT r.role_key FROM user_roles ur INNER JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = :user_id ORDER BY r.role_name ASC');
+        $stmt = db()->prepare(
+            "SELECT r.role_key
+             FROM user_roles ur
+             INNER JOIN roles r ON r.id = ur.role_id
+             WHERE ur.user_id = :user_id
+             ORDER BY FIELD(r.role_key, 'super_admin','platform_admin','client_admin','client_user','readonly'), r.role_name ASC"
+        );
         $stmt->execute([':user_id' => $userId]);
         return array_map(static fn(array $row): string => (string) $row['role_key'], $stmt->fetchAll());
     }
@@ -228,16 +369,26 @@ final class UserRepository
 
     public function canManageUser(array $authUser, array $targetUser): bool
     {
-        if ($this->isPlatformUser($authUser)) {
+        $authRoles = $authUser['roles'] ?? [];
+        $targetRoles = $targetUser['roles'] ?? [];
+
+        if ($this->isSuperAdmin($authUser)) {
             return true;
         }
 
-        $authRoles = $authUser['roles'] ?? [];
+        if ($this->isPlatformAdmin($authUser)) {
+            foreach ($targetRoles as $role) {
+                if (in_array($role, ['super_admin', 'platform_admin'], true)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         if (!in_array('client_admin', $authRoles, true)) {
             return false;
         }
 
-        $targetRoles = $targetUser['roles'] ?? [];
         foreach ($targetRoles as $role) {
             if (in_array($role, ['super_admin', 'platform_admin'], true)) {
                 return false;
@@ -257,9 +408,15 @@ final class UserRepository
         return array_map(static fn(array $row): int => (int) $row['client_id'], $stmt->fetchAll());
     }
 
-    private function isPlatformUser(array $authUser): bool
+    private function isSuperAdmin(array $authUser): bool
     {
         $roles = $authUser['roles'] ?? [];
-        return in_array('super_admin', $roles, true) || in_array('platform_admin', $roles, true);
+        return in_array('super_admin', $roles, true);
+    }
+
+    private function isPlatformAdmin(array $authUser): bool
+    {
+        $roles = $authUser['roles'] ?? [];
+        return in_array('platform_admin', $roles, true);
     }
 }

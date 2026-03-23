@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/app/bootstrap/init.php';
 require_once APP_PATH . '/middleware/require_login.php';
+require_once APP_PATH . '/middleware/require_role.php';
+require_once APP_PATH . '/repositories/RoleRepository.php';
 
-$stmt = db()->query('SELECT role_key, role_name, description FROM roles ORDER BY role_name ASC');
-$roles = $stmt->fetchAll();
+require_platform_admin_or_higher();
+
+$roleRepo = new RoleRepository();
+$roles = $roleRepo->getAll();
 
 $pageTitle = 'Roles';
 require APP_PATH . '/includes/header.php';
@@ -15,12 +19,19 @@ require APP_PATH . '/includes/header.php';
     <?php require APP_PATH . '/includes/sidebar.php'; ?>
     <main class="main">
         <?php require APP_PATH . '/includes/topbar.php'; ?>
+
         <section class="card section-card">
             <h2>Roles</h2>
+            <p>Current platform roles available for assignment.</p>
+
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>Role Key</th><th>Name</th><th>Description</th></tr>
+                        <tr>
+                            <th>Role Key</th>
+                            <th>Role Name</th>
+                            <th>Description</th>
+                        </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($roles as $role): ?>
