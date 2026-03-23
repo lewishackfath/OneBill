@@ -1,0 +1,2 @@
+-- Phase 1 schema created manually by user.
+-- Keep this file in the project for source control consistency.
