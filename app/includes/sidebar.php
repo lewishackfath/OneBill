@@ -1,37 +1,36 @@
-<?php
-$currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
-$currentPath = rtrim((string) $currentPath, '/');
-
-$navItems = [
-    ['label' => 'Dashboard', 'href' => base_url('dashboard.php'), 'match' => '/dashboard.php', 'show' => true],
-    ['label' => 'Clients', 'href' => base_url('clients/index.php'), 'match' => '/clients', 'show' => can_view_clients_nav()],
-    ['label' => 'Users', 'href' => base_url('users/index.php'), 'match' => '/users', 'show' => can_view_users_nav()],
-    ['label' => 'Roles', 'href' => base_url('roles/index.php'), 'match' => '/roles', 'show' => can_access_roles_page()],
-    ['label' => 'Settings', 'href' => base_url('settings/index.php'), 'match' => '/settings', 'show' => can_access_settings_page()],
-    ['label' => 'My Profile', 'href' => base_url('profile/index.php'), 'match' => '/profile', 'show' => true],
-];
-?>
+<?php $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'; ?>
 <aside class="sidebar">
-    <div class="sidebar__brand">
-        <a href="<?= e(base_url('dashboard.php')) ?>"><?= e(app_config('name', '3CX CDR Processor')) ?></a>
+    <div class="sidebar-brand">
+        <a href="<?= e(base_url('/dashboard.php')) ?>"><?= e(app_setting('application_name', app_config('name', '3CX CDR Processor'))) ?></a>
     </div>
 
-    <?php if (is_logged_in()): ?>
-        <div class="sidebar__context">
-            <div class="sidebar__context-label">Signed in as</div>
-            <div class="sidebar__context-value"><?= e(auth_user()['display_name'] ?? auth_user()['email'] ?? '') ?></div>
-            <div class="sidebar__context-meta"><?= e(auth_primary_role_name()) ?></div>
-            <?php if (current_client_name() !== null): ?>
-                <div class="sidebar__context-client">Client: <?= e((string) current_client_name()) ?></div>
-            <?php endif; ?>
-        </div>
-    <?php endif; ?>
+    <nav class="sidebar-nav">
+        <a class="<?= str_contains($currentPath, '/dashboard.php') ? 'active' : '' ?>" href="<?= e(base_url('/dashboard.php')) ?>">Dashboard</a>
 
-    <nav class="sidebar__nav">
-        <?php foreach ($navItems as $item): ?>
-            <?php if (!$item['show']) { continue; } ?>
-            <?php $isActive = str_contains($currentPath, $item['match']); ?>
-            <a class="<?= $isActive ? 'is-active' : '' ?>" href="<?= e($item['href']) ?>"><?= e($item['label']) ?></a>
-        <?php endforeach; ?>
+        <?php if (user_has_role(['super_admin', 'platform_admin'])): ?>
+            <a class="<?= str_contains($currentPath, '/clients/') ? 'active' : '' ?>" href="<?= e(base_url('/clients/index.php')) ?>">Clients</a>
+        <?php endif; ?>
+
+        <?php if (user_has_role(['super_admin', 'platform_admin', 'client_admin'])): ?>
+            <a class="<?= str_contains($currentPath, '/users/') ? 'active' : '' ?>" href="<?= e(base_url('/users/index.php')) ?>">Users</a>
+        <?php endif; ?>
+
+        <?php if (user_has_role(['super_admin', 'platform_admin'])): ?>
+            <a class="<?= str_contains($currentPath, '/roles/') ? 'active' : '' ?>" href="<?= e(base_url('/roles/index.php')) ?>">Roles</a>
+            <a class="<?= str_contains($currentPath, '/audit/') ? 'active' : '' ?>" href="<?= e(base_url('/audit/index.php')) ?>">Audit Logs</a>
+            <a class="<?= str_contains($currentPath, '/settings/') ? 'active' : '' ?>" href="<?= e(base_url('/settings/index.php')) ?>">Settings</a>
+        <?php elseif (user_has_role('client_admin')): ?>
+            <a class="<?= str_contains($currentPath, '/audit/') ? 'active' : '' ?>" href="<?= e(base_url('/audit/index.php')) ?>">Audit Logs</a>
+        <?php endif; ?>
+
+        <a class="<?= str_contains($currentPath, '/profile/') ? 'active' : '' ?>" href="<?= e(base_url('/profile/index.php')) ?>">My Profile</a>
     </nav>
+
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="sidebar-user-name"><?= e(user_full_name()) ?></div>
+            <div class="sidebar-user-email"><?= e(auth_user()['email'] ?? '') ?></div>
+        </div>
+        <a class="button button-secondary button-block" href="<?= e(base_url('/logout.php')) ?>">Sign out</a>
+    </div>
 </aside>

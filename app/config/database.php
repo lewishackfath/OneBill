@@ -1,13 +1,11 @@
 <?php
-
 declare(strict_types=1);
 
 return [
-    'host' => env('DB_HOST', '127.0.0.1'),
-    'port' => (int) env('DB_PORT', '3306'),
-    'database' => env('DB_DATABASE', ''),
-    'username' => env('DB_USERNAME', ''),
-    'password' => env('DB_PASSWORD', ''),
-    'charset' => 'utf8mb4',
-    'collation' => 'utf8mb4_unicode_ci',
+    'host' => (string) env_value('DB_HOST', '127.0.0.1'),
+    'port' => (int) env_value('DB_PORT', 3306),
+    'name' => (string) env_value('DB_NAME', ''),
+    'user' => (string) env_value('DB_USER', ''),
+    'pass' => (string) env_value('DB_PASS', ''),
+    'charset' => (string) env_value('DB_CHARSET', 'utf8mb4'),
 ];
