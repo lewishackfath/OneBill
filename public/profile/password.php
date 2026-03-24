@@ -1,61 +1,85 @@
 <?php
-declare(strict_types=1);
-$title = 'Change Password';
-require_once dirname(__DIR__, 2) . '/app/includes/header.php';
 
-if (is_post()) {
-    validate_csrf();
+declare(strict_types=1);
+
+require_once dirname(__DIR__, 2) . '/app/bootstrap/init.php';
+require_once APP_PATH . '/middleware/require_login.php';
+require_once APP_PATH . '/repositories/UserRepository.php';
+
+$userId = auth_user_id();
+$userRepo = new UserRepository();
+$currentUser = $userRepo->findById((int) $userId);
+if ($currentUser === null) {
+    http_response_code(404);
+    exit('User not found.');
+}
+
+$errors = validation_errors();
+
+if (submitted('POST')) {
+    verify_csrf();
 
     $currentPassword = (string) ($_POST['current_password'] ?? '');
     $newPassword = (string) ($_POST['new_password'] ?? '');
     $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
-    $stmt = db()->prepare('SELECT password_hash FROM users WHERE id = ?');
-    $stmt->execute([(int) auth_user()['id']]);
-    $hash = (string) $stmt->fetchColumn();
-
-    if (!password_verify($currentPassword, $hash)) {
-        flash('danger', 'Your current password is incorrect.');
-        redirect('/profile/password.php');
+    $errors = [];
+    if ($currentPassword === '' || !password_verify($currentPassword, (string) $currentUser['password_hash'])) {
+        $errors['current_password'] = 'Your current password is incorrect.';
+    }
+    if (mb_strlen($newPassword) < 12) {
+        $errors['new_password'] = 'Use a new password with at least 12 characters.';
     }
     if ($newPassword !== $confirmPassword) {
-        flash('danger', 'New password confirmation does not match.');
-        redirect('/profile/password.php');
-    }
-    if (strlen($newPassword) < 12) {
-        flash('danger', 'New password must be at least 12 characters.');
-        redirect('/profile/password.php');
+        $errors['confirm_password'] = 'Password confirmation does not match.';
     }
 
-    $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
-    db()->prepare('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?')
-        ->execute([$newHash, (int) auth_user()['id']]);
+    if ($errors !== []) {
+        redirect_with_errors('profile/password.php', $errors, []);
+    }
 
-    audit_log((int) auth_user()['id'], current_client_id(), 'user.change_password', 'user', (string) auth_user()['id'], 'User changed their password');
-    flash('success', 'Password updated successfully.');
-    redirect('/profile/password.php');
+    $userRepo->updatePassword((int) $userId, password_hash($newPassword, PASSWORD_DEFAULT));
+    audit_log((int) $userId, null, 'password_changed', 'user', (string) $userId, 'User changed their own password');
+    flash('success', 'Password changed successfully.');
+    redirect('profile/index.php');
 }
+
+$pageTitle = 'Change Password';
+require APP_PATH . '/includes/header.php';
 ?>
-<section class="card narrow">
-    <h2>Change Password</h2>
-    <p class="muted"><?= e((string) app_setting('password_policy_text', 'Minimum 12 characters recommended.')) ?></p>
-    <form method="post">
-        <?= csrf_input() ?>
-        <div class="form-row">
-            <label for="current_password">Current Password</label>
-            <input type="password" name="current_password" id="current_password" required>
-        </div>
-        <div class="form-row">
-            <label for="new_password">New Password</label>
-            <input type="password" name="new_password" id="new_password" required>
-        </div>
-        <div class="form-row">
-            <label for="confirm_password">Confirm New Password</label>
-            <input type="password" name="confirm_password" id="confirm_password" required>
-        </div>
-        <div class="button-row">
-            <button type="submit" class="button">Update Password</button>
-        </div>
-    </form>
-</section>
-<?php require_once dirname(__DIR__, 2) . '/app/includes/footer.php'; ?>
+<div class="layout">
+    <?php require APP_PATH . '/includes/sidebar.php'; ?>
+    <main class="main">
+        <?php require APP_PATH . '/includes/topbar.php'; ?>
+        <?php require APP_PATH . '/includes/flash.php'; ?>
+
+        <section class="card section-card">
+            <h2>Change Password</h2>
+            <p>Update your own account password.</p>
+
+            <form method="post" class="form-stack">
+                <?= csrf_input() ?>
+                <label>
+                    <span>Current Password</span>
+                    <input type="password" name="current_password" required>
+                    <?php if ($message = field_error($errors, 'current_password')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
+                </label>
+                <label>
+                    <span>New Password</span>
+                    <input type="password" name="new_password" required>
+                    <?php if ($message = field_error($errors, 'new_password')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
+                </label>
+                <label>
+                    <span>Confirm New Password</span>
+                    <input type="password" name="confirm_password" required>
+                    <?php if ($message = field_error($errors, 'confirm_password')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
+                </label>
+                <div class="form-actions">
+                    <button type="submit" class="button">Change Password</button>
+                    <a class="button button--secondary" href="<?= e(base_url('profile/index.php')) ?>">Back</a>
+                </div>
+            </form>
+        </section>
+    </main>
+</div>
+<?php require APP_PATH . '/includes/footer.php'; ?>

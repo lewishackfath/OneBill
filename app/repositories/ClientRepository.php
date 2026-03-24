@@ -1,45 +1,177 @@
 <?php
+
 declare(strict_types=1);
 
-class ClientRepository
+final class ClientRepository
 {
-    public function allActive(): array
+    public function countAll(): int
     {
-        return db()->query("SELECT * FROM clients WHERE status = 'active' ORDER BY name ASC")->fetchAll();
+        return (int) db()->query('SELECT COUNT(*) FROM clients')->fetchColumn();
     }
 
-    public function countVisibleToCurrentUser(): int
+    public function countActive(): int
     {
-        if (user_has_role(['super_admin', 'platform_admin'])) {
-            return (int) db()->query('SELECT COUNT(*) FROM clients')->fetchColumn();
+        return (int) db()->query("SELECT COUNT(*) FROM clients WHERE status = 'active'")->fetchColumn();
+    }
+
+    public function countVisibleForUser(array $authUser): int
+    {
+        if ($this->isPlatformUser($authUser)) {
+            return $this->countAll();
         }
 
-        return count(available_client_ids_for_user());
+        $stmt = db()->prepare('SELECT COUNT(*) FROM user_client_access WHERE user_id = :user_id');
+        $stmt->execute([':user_id' => (int) $authUser['id']]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function countActiveVisibleForUser(array $authUser): int
+    {
+        if ($this->isPlatformUser($authUser)) {
+            return $this->countActive();
+        }
+
+        $stmt = db()->prepare(
+            "SELECT COUNT(*)
+             FROM clients c
+             INNER JOIN user_client_access uca ON uca.client_id = c.id
+             WHERE uca.user_id = :user_id AND c.status = 'active'"
+        );
+        $stmt->execute([':user_id' => (int) $authUser['id']]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function getAll(): array
+    {
+        $stmt = db()->query('SELECT * FROM clients ORDER BY name ASC');
+        return $stmt->fetchAll();
+    }
+
+    public function getAllVisibleForUser(array $authUser): array
+    {
+        if ($this->isPlatformUser($authUser)) {
+            return $this->getAll();
+        }
+
+        $stmt = db()->prepare(
+            'SELECT c.*, uca.access_level
+             FROM clients c
+             INNER JOIN user_client_access uca ON uca.client_id = c.id
+             WHERE uca.user_id = :user_id
+             ORDER BY c.name ASC'
+        );
+        $stmt->execute([':user_id' => (int) $authUser['id']]);
+        return $stmt->fetchAll();
+    }
+
+    public function getOptionsForUser(array $authUser): array
+    {
+        $rows = $this->getAllVisibleForUser($authUser);
+        return array_map(static fn(array $row): array => [
+            'id' => (int) $row['id'],
+            'name' => (string) $row['name'],
+            'status' => (string) $row['status'],
+        ], $rows);
     }
 
     public function findById(int $id): ?array
     {
-        $stmt = db()->prepare('SELECT * FROM clients WHERE id = ? LIMIT 1');
-        $stmt->execute([$id]);
-        $client = $stmt->fetch();
-        return $client ?: null;
+        $stmt = db()->prepare('SELECT * FROM clients WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch();
+        return $row ?: null;
     }
 
-    public function findAccessibleForCurrentUser(): array
+    public function findVisibleById(int $id, array $authUser): ?array
     {
-        if (user_has_role(['super_admin', 'platform_admin'])) {
-            return $this->allActive();
+        if ($this->isPlatformUser($authUser)) {
+            return $this->findById($id);
         }
 
-        $clientIds = available_client_ids_for_user();
-        if (empty($clientIds)) {
-            return [];
+        $stmt = db()->prepare(
+            'SELECT c.*, uca.access_level
+             FROM clients c
+             INNER JOIN user_client_access uca ON uca.client_id = c.id
+             WHERE c.id = :id AND uca.user_id = :user_id
+             LIMIT 1'
+        );
+        $stmt->execute([
+            ':id' => $id,
+            ':user_id' => (int) $authUser['id'],
+        ]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    public function create(array $data): int
+    {
+        $stmt = db()->prepare(
+            'INSERT INTO clients (name, code, status, timezone, contact_name, contact_email, contact_phone, notes)
+             VALUES (:name, :code, :status, :timezone, :contact_name, :contact_email, :contact_phone, :notes)'
+        );
+        $stmt->execute([
+            ':name' => $data['name'],
+            ':code' => $data['code'],
+            ':status' => $data['status'],
+            ':timezone' => $data['timezone'],
+            ':contact_name' => $data['contact_name'] ?: null,
+            ':contact_email' => $data['contact_email'] ?: null,
+            ':contact_phone' => $data['contact_phone'] ?: null,
+            ':notes' => $data['notes'] ?: null,
+        ]);
+
+        return (int) db()->lastInsertId();
+    }
+
+    public function update(int $id, array $data): void
+    {
+        $stmt = db()->prepare(
+            'UPDATE clients
+             SET name = :name,
+                 code = :code,
+                 status = :status,
+                 timezone = :timezone,
+                 contact_name = :contact_name,
+                 contact_email = :contact_email,
+                 contact_phone = :contact_phone,
+                 notes = :notes,
+                 updated_at = NOW()
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            ':id' => $id,
+            ':name' => $data['name'],
+            ':code' => $data['code'],
+            ':status' => $data['status'],
+            ':timezone' => $data['timezone'],
+            ':contact_name' => $data['contact_name'] ?: null,
+            ':contact_email' => $data['contact_email'] ?: null,
+            ':contact_phone' => $data['contact_phone'] ?: null,
+            ':notes' => $data['notes'] ?: null,
+        ]);
+    }
+
+    public function existsByCode(string $code, ?int $excludeId = null): bool
+    {
+        if ($excludeId !== null) {
+            $stmt = db()->prepare('SELECT COUNT(*) FROM clients WHERE code = :code AND id <> :id');
+            $stmt->execute([':code' => $code, ':id' => $excludeId]);
+            return (int) $stmt->fetchColumn() > 0;
         }
 
-        $placeholders = implode(',', array_fill(0, count($clientIds), '?'));
-        $sql = "SELECT * FROM clients WHERE id IN ($placeholders) AND status = 'active' ORDER BY name ASC";
-        $stmt = db()->prepare($sql);
-        $stmt->execute($clientIds);
-        return $stmt->fetchAll();
+        $stmt = db()->prepare('SELECT COUNT(*) FROM clients WHERE code = :code');
+        $stmt->execute([':code' => $code]);
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    public function canManageClients(array $authUser): bool
+    {
+        return $this->isPlatformUser($authUser);
+    }
+
+    private function isPlatformUser(array $authUser): bool
+    {
+        $roles = $authUser['roles'] ?? [];
+        return in_array('super_admin', $roles, true) || in_array('platform_admin', $roles, true);
     }
 }

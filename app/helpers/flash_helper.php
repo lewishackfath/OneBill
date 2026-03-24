@@ -1,14 +1,24 @@
 <?php
+
 declare(strict_types=1);
 
-function flash(string $type, string $message): void
+function flash(string $key, ?string $message = null): ?string
 {
-    $_SESSION['flash_messages'][] = ['type' => $type, 'message' => $message];
+    if ($message !== null) {
+        $_SESSION['_flash'][$key] = $message;
+        return null;
+    }
+
+    if (!isset($_SESSION['_flash'][$key])) {
+        return null;
+    }
+
+    $value = (string) $_SESSION['_flash'][$key];
+    unset($_SESSION['_flash'][$key]);
+    return $value;
 }
 
-function get_flash_messages(): array
+function has_flash(string $key): bool
 {
-    $messages = $_SESSION['flash_messages'] ?? [];
-    unset($_SESSION['flash_messages']);
-    return is_array($messages) ? $messages : [];
+    return isset($_SESSION['_flash'][$key]);
 }
