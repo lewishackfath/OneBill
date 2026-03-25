@@ -24,7 +24,7 @@ $stats = [
     'roles_total' => $roleRepo->countAll(),
     'assigned_clients' => auth_assigned_client_count(),
 ];
-$recentAudit = can_access_audit_page() ? $auditRepo->recent(8, $authUser) : [];
+$recentAudit = is_platform_user() ? $auditRepo->recent(8) : [];
 
 require APP_PATH . '/includes/header.php';
 ?>
@@ -89,12 +89,6 @@ require APP_PATH . '/includes/header.php';
                     <?php if (can_view_clients_nav()): ?>
                         <a class="quick-link" href="<?= e(base_url('clients/index.php')) ?>">Manage Clients</a>
                     <?php endif; ?>
-                    <?php if (can_access_audit_page()): ?>
-                        <a class="quick-link" href="<?= e(base_url('audit/index.php')) ?>">View Audit Logs</a>
-                    <?php endif; ?>
-                    <?php if (can_access_settings_page()): ?>
-                        <a class="quick-link" href="<?= e(base_url('settings/index.php')) ?>">Platform Settings</a>
-                    <?php endif; ?>
                     <a class="quick-link" href="<?= e(base_url('profile/index.php')) ?>">My Profile</a>
                     <a class="quick-link" href="<?= e(base_url('profile/password.php')) ?>">Change Password</a>
                 </div>
@@ -132,15 +126,9 @@ require APP_PATH . '/includes/header.php';
             </div>
         </section>
 
-        <?php if (can_access_audit_page()): ?>
+        <?php if (is_platform_user()): ?>
             <section class="card section-card">
-                <div class="page-actions page-actions--tight">
-                    <div>
-                        <h2>Recent Audit Activity</h2>
-                        <p>Most recent events visible to your current role.</p>
-                    </div>
-                    <a class="button button--secondary button--small" href="<?= e(base_url('audit/index.php')) ?>">Open Audit Log</a>
-                </div>
+                <h2>Recent Audit Activity</h2>
                 <?php if ($recentAudit === []): ?>
                     <p>No audit entries yet.</p>
                 <?php else: ?>
@@ -151,7 +139,6 @@ require APP_PATH . '/includes/header.php';
                                     <th>Date</th>
                                     <th>Action</th>
                                     <th>Entity</th>
-                                    <th>Client</th>
                                     <th>Description</th>
                                     <th>User</th>
                                 </tr>
@@ -162,7 +149,6 @@ require APP_PATH . '/includes/header.php';
                                         <td><?= e((string) $row['created_at']) ?></td>
                                         <td><?= e((string) $row['action']) ?></td>
                                         <td><?= e((string) $row['entity_type']) ?></td>
-                                        <td><?= e((string) ($row['client_name'] ?? '—')) ?></td>
                                         <td><?= e((string) ($row['description'] ?? '')) ?></td>
                                         <td><?= e(trim(((string) ($row['first_name'] ?? '')) . ' ' . ((string) ($row['last_name'] ?? '')))) ?></td>
                                     </tr>

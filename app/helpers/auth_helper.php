@@ -203,11 +203,6 @@ function can_access_settings_page(): bool
     return is_platform_user();
 }
 
-function can_access_audit_page(): bool
-{
-    return user_has_role(['super_admin', 'platform_admin', 'client_admin']);
-}
-
 function can_view_clients_nav(): bool
 {
     return is_platform_user();

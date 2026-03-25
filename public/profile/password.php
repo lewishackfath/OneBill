@@ -68,7 +68,6 @@ require APP_PATH . '/includes/header.php';
                     <span>New Password</span>
                     <input type="password" name="new_password" required>
                     <?php if ($message = field_error($errors, 'new_password')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
-                    <small class="field-help"><?= e((string) app_config('password_policy_text', 'Use at least 12 characters. Consider a strong passphrase or password manager generated password.')) ?></small>
                 </label>
                 <label>
                     <span>Confirm New Password</span>

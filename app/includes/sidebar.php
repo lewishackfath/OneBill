@@ -7,7 +7,6 @@ $navItems = [
     ['label' => 'Clients', 'href' => base_url('clients/index.php'), 'match' => '/clients', 'show' => can_view_clients_nav()],
     ['label' => 'Users', 'href' => base_url('users/index.php'), 'match' => '/users', 'show' => can_view_users_nav()],
     ['label' => 'Roles', 'href' => base_url('roles/index.php'), 'match' => '/roles', 'show' => can_access_roles_page()],
-    ['label' => 'Audit Logs', 'href' => base_url('audit/index.php'), 'match' => '/audit', 'show' => can_access_audit_page()],
     ['label' => 'Settings', 'href' => base_url('settings/index.php'), 'match' => '/settings', 'show' => can_access_settings_page()],
     ['label' => 'My Profile', 'href' => base_url('profile/index.php'), 'match' => '/profile', 'show' => true],
 ];
