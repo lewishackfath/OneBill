@@ -450,3 +450,13 @@ th {
         min-width: 100%;
     }
 }
+
+
+.filter-form .full-width,
+.form-grid .full-width { grid-column: 1 / -1; }
+.empty-state { padding: 18px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); }
+.badge { display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--panel-alt); color: var(--text); font-size: 12px; }
+.metadata-details summary { cursor: pointer; color: var(--muted); }
+.metadata-details pre { white-space: pre-wrap; word-break: break-word; background: var(--panel-soft); border: 1px solid var(--line); padding: 12px; border-radius: 10px; }
+.pagination { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.table-subtext { color: var(--muted); font-size: 12px; margin-top: 4px; }

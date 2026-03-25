@@ -36,6 +36,13 @@ function require_settings_access(): void
     }
 }
 
+function require_audit_access(): void
+{
+    if (!can_access_audit_page()) {
+        forbid();
+    }
+}
+
 function require_client_scope(int $clientId): void
 {
     if (!can_access_client($clientId)) {
