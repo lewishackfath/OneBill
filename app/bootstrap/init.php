@@ -26,10 +26,10 @@ $appConfig = require APP_PATH . '/config/app.php';
 date_default_timezone_set($appConfig['timezone']);
 
 configure_error_reporting((bool) $appConfig['debug']);
-configure_session($appConfig['session']);
-
 $GLOBALS['app_config'] = $appConfig;
 $GLOBALS['db'] = make_pdo(require APP_PATH . '/config/database.php');
+apply_database_app_settings();
+configure_session($GLOBALS['app_config']['session']);
 
 if (is_logged_in()) {
     refresh_authenticated_user_session();
@@ -135,6 +135,42 @@ function configure_error_reporting(bool $debug): void
     ini_set('display_errors', '0');
 }
 
+function apply_database_app_settings(): void
+{
+    try {
+        $stmt = db()->query("SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ('app_name', 'default_timezone', 'session_timeout_minutes', 'password_policy_text')");
+        $rows = $stmt->fetchAll();
+        if ($rows === []) {
+            return;
+        }
+
+        foreach ($rows as $row) {
+            $key = (string) ($row['setting_key'] ?? '');
+            $value = (string) ($row['setting_value'] ?? '');
+            switch ($key) {
+                case 'app_name':
+                    $GLOBALS['app_config']['name'] = $value !== '' ? $value : $GLOBALS['app_config']['name'];
+                    break;
+                case 'default_timezone':
+                    if ($value !== '') {
+                        $GLOBALS['app_config']['timezone'] = $value;
+                        date_default_timezone_set($value);
+                    }
+                    break;
+                case 'session_timeout_minutes':
+                    $minutes = max(5, (int) $value);
+                    $GLOBALS['app_config']['session']['lifetime'] = $minutes * 60;
+                    break;
+                case 'password_policy_text':
+                    $GLOBALS['app_config']['password_policy_text'] = $value;
+                    break;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('apply_database_app_settings failed: ' . $e->getMessage());
+    }
+}
+
 function configure_session(array $sessionConfig): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
@@ -159,10 +195,14 @@ function configure_session(array $sessionConfig): void
 
     $timeout = (int) ($sessionConfig['lifetime'] ?? 7200);
     $lastActivity = $_SESSION['_last_activity'] ?? time();
-    if ((time() - (int) $lastActivity) > $timeout) {
-        session_unset();
-        session_destroy();
-        session_start();
+    if (is_int($lastActivity) || ctype_digit((string) $lastActivity)) {
+        if ((time() - (int) $lastActivity) > $timeout) {
+            $_SESSION = [];
+            session_regenerate_id(true);
+            $_SESSION['_session_expired'] = true;
+            redirect('expired.php');
+        }
     }
+
     $_SESSION['_last_activity'] = time();
 }
