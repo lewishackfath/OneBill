@@ -250,3 +250,9 @@ function auth_has_client_access(int $clientId): bool
 {
     return in_array($clientId, auth_accessible_client_ids(), true);
 }
+
+
+function can_view_cdr_imports_nav(): bool
+{
+    return can_manage_phone_systems();
+}

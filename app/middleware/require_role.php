@@ -56,3 +56,11 @@ function require_phone_system_admin_access(): void
         forbid();
     }
 }
+
+
+function require_cdr_import_access(): void
+{
+    if (!can_view_cdr_imports_nav()) {
+        forbid();
+    }
+}

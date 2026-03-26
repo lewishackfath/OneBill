@@ -26,7 +26,7 @@ require APP_PATH . '/includes/header.php';
             <div class="page-actions">
                 <div>
                     <h2>3CX Phone Systems</h2>
-                    <p>Manage per-client 3CX connection records, credentials, and future CDR import targets.</p>
+                    <p>Manage per-client 3CX systems configured for passive socket CDR collection.</p>
                 </div>
                 <a class="button" href="<?= e(base_url('phone-systems/create.php')) ?>">Add Phone System</a>
             </div>
@@ -40,10 +40,10 @@ require APP_PATH . '/includes/header.php';
                             <tr>
                                 <th>System</th>
                                 <th>Client</th>
-                                <th>URL</th>
-                                <th>Auth</th>
+                                <th>Socket</th>
+                                <th>CDR</th>
                                 <th>Status</th>
-                                <th>Last Test</th>
+                                <th>Last Connect</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -54,23 +54,41 @@ require APP_PATH . '/includes/header.php';
                                         <strong><?= e((string) $row['system_name']) ?></strong>
                                         <div class="table-subtext">Code: <?= e((string) $row['system_code']) ?></div>
                                         <div class="table-subtext">Timezone: <?= e((string) $row['timezone']) ?></div>
+                                        <?php if (!empty($row['base_url'])): ?>
+                                            <div class="table-subtext">URL: <?= e((string) $row['base_url']) ?></div>
+                                        <?php endif; ?>
                                     </td>
                                     <td><?= e((string) $row['client_name']) ?></td>
                                     <td>
-                                        <?php if (!empty($row['base_url'])): ?>
-                                            <?= e((string) $row['base_url']) ?>
+                                        <?php if (!empty($row['host']) && !empty($row['port'])): ?>
+                                            <strong><?= e((string) $row['host']) ?>:<?= e((string) $row['port']) ?></strong>
+                                            <div class="table-subtext">Mode: <?= e((string) ($row['connection_mode'] ?? 'passive_socket')) ?></div>
+                                            <div class="table-subtext">Timeout: <?= e((string) ($row['socket_timeout_seconds'] ?? 10)) ?>s</div>
                                         <?php else: ?>
-                                            —
+                                            <span class="table-subtext">Not configured</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= e(ucfirst((string) $row['auth_type'])) ?></td>
+                                    <td>
+                                        <span class="badge <?= !empty($row['cdr_enabled']) ? 'badge--success' : 'badge--muted' ?>">
+                                            <?= !empty($row['cdr_enabled']) ? 'Enabled' : 'Disabled' ?>
+                                        </span>
+                                        <div class="table-subtext">Profile: <?= e((string) ($row['cdr_field_profile'] ?? 'default')) ?></div>
+                                    </td>
                                     <td>
                                         <span class="badge <?= ($row['status'] === 'active') ? 'badge--success' : 'badge--muted' ?>">
                                             <?= e(ucfirst((string) $row['status'])) ?>
                                         </span>
                                     </td>
                                     <td>
-                                        <?php if (!empty($row['last_tested_at'])): ?>
+                                        <?php if (!empty($row['last_connect_at'])): ?>
+                                            <?= e((string) $row['last_connect_at']) ?><br>
+                                            <span class="badge <?= (($row['last_connect_status'] ?? '') === 'success') ? 'badge--success' : 'badge--warning' ?>">
+                                                <?= e(ucfirst((string) ($row['last_connect_status'] ?? 'unknown'))) ?>
+                                            </span>
+                                            <?php if (!empty($row['last_connect_message'])): ?>
+                                                <div class="table-subtext"><?= e((string) $row['last_connect_message']) ?></div>
+                                            <?php endif; ?>
+                                        <?php elseif (!empty($row['last_tested_at'])): ?>
                                             <?= e((string) $row['last_tested_at']) ?><br>
                                             <span class="badge <?= (($row['last_test_status'] ?? '') === 'success') ? 'badge--success' : 'badge--warning' ?>">
                                                 <?= e(ucfirst((string) ($row['last_test_status'] ?? 'unknown'))) ?>
@@ -85,7 +103,7 @@ require APP_PATH . '/includes/header.php';
                                             <form method="post" action="<?= e(base_url('phone-systems/test-connection.php')) ?>">
                                                 <?= csrf_input() ?>
                                                 <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
-                                                <button type="submit" class="button button--secondary button--small">Test</button>
+                                                <button type="submit" class="button button--secondary button--small">Test Socket</button>
                                             </form>
                                         </div>
                                     </td>

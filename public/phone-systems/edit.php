@@ -37,6 +37,12 @@ if (submitted('POST')) {
         'timezone' => trim((string) ($_POST['timezone'] ?? 'Australia/Sydney')),
         'status' => (string) ($_POST['status'] ?? 'active'),
         'notes' => trim((string) ($_POST['notes'] ?? '')),
+        'host' => trim((string) ($_POST['host'] ?? '')),
+        'port' => (int) ($_POST['port'] ?? 0),
+        'connection_mode' => 'passive_socket',
+        'cdr_enabled' => ((string) ($_POST['cdr_enabled'] ?? '1')) === '1' ? 1 : 0,
+        'cdr_field_profile' => trim((string) ($_POST['cdr_field_profile'] ?? '3cx_default')),
+        'socket_timeout_seconds' => (int) ($_POST['socket_timeout_seconds'] ?? 10),
     ];
 
     $replacePassword = ((string) ($_POST['replace_api_password'] ?? '0')) === '1';
@@ -60,9 +66,7 @@ if (submitted('POST')) {
     } elseif ($data['client_id'] > 0 && $repo->codeExistsForClient($data['client_id'], $data['system_code'], $id)) {
         $errors['system_code'] = 'That system code is already in use for this client.';
     }
-    if ($data['base_url'] === '') {
-        $errors['base_url'] = 'Base URL is required.';
-    } elseif (!filter_var($data['base_url'], FILTER_VALIDATE_URL)) {
+    if ($data['base_url'] !== '' && !filter_var($data['base_url'], FILTER_VALIDATE_URL)) {
         $errors['base_url'] = 'Enter a valid base URL.';
     }
     if (!in_array($data['auth_type'], ['basic', 'bearer'], true)) {
@@ -73,6 +77,15 @@ if (submitted('POST')) {
     }
     if ($data['timezone'] === '') {
         $errors['timezone'] = 'Timezone is required.';
+    }
+    if ($data['host'] === '') {
+        $errors['host'] = 'Socket host is required.';
+    }
+    if ($data['port'] < 1 || $data['port'] > 65535) {
+        $errors['port'] = 'Enter a valid TCP port.';
+    }
+    if ($data['socket_timeout_seconds'] < 2 || $data['socket_timeout_seconds'] > 120) {
+        $errors['socket_timeout_seconds'] = 'Socket timeout must be between 2 and 120 seconds.';
     }
     if ($data['auth_type'] === 'basic' && $data['api_username'] === '') {
         $errors['api_username'] = 'API username is required for basic auth.';
@@ -96,6 +109,9 @@ if (submitted('POST')) {
             'password' => $replacePassword,
             'token' => $replaceToken,
         ],
+        'host' => $data['host'],
+        'port' => $data['port'],
+        'cdr_enabled' => (bool) $data['cdr_enabled'],
     ]);
     flash('success', 'Phone system updated successfully.');
     redirect('phone-systems/index.php');
@@ -114,12 +130,12 @@ require APP_PATH . '/includes/header.php';
             <div class="page-actions">
                 <div>
                     <h2>Edit 3CX Phone System</h2>
-                    <p>Update connection settings, credentials, and tenant mapping.</p>
+                    <p>Update passive socket connection settings, credentials, and tenant mapping.</p>
                 </div>
                 <form method="post" action="<?= e(base_url('phone-systems/test-connection.php')) ?>">
                     <?= csrf_input() ?>
                     <input type="hidden" name="id" value="<?= (int) $phoneSystem['id'] ?>">
-                    <button type="submit" class="button button--secondary">Test Connection</button>
+                    <button type="submit" class="button button--secondary">Test Socket</button>
                 </form>
             </div>
 
@@ -153,7 +169,7 @@ require APP_PATH . '/includes/header.php';
                         </label>
                         <label>
                             <span>Base URL</span>
-                            <input type="url" name="base_url" value="<?= e((string) old_input('base_url', (string) $phoneSystem['base_url'])) ?>" required>
+                            <input type="url" name="base_url" value="<?= e((string) old_input('base_url', (string) $phoneSystem['base_url'])) ?>">
                             <?php if ($message = field_error($errors, 'base_url')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
                         </label>
                         <label>
@@ -167,6 +183,44 @@ require APP_PATH . '/includes/header.php';
                                 <?php $status = (string) old_input('status', (string) $phoneSystem['status']); ?>
                                 <option value="active" <?= $status === 'active' ? 'selected' : '' ?>>Active</option>
                                 <option value="inactive" <?= $status === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Passive Socket CDR</h3>
+                    <div class="form-grid">
+                        <label>
+                            <span>Socket Host</span>
+                            <input type="text" name="host" value="<?= e((string) old_input('host', (string) ($phoneSystem['host'] ?? ''))) ?>" required>
+                            <?php if ($message = field_error($errors, 'host')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
+                        </label>
+                        <label>
+                            <span>Socket Port</span>
+                            <input type="number" name="port" min="1" max="65535" value="<?= e((string) old_input('port', (string) ($phoneSystem['port'] ?? '33001'))) ?>" required>
+                            <?php if ($message = field_error($errors, 'port')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
+                        </label>
+                        <label>
+                            <span>Field Profile</span>
+                            <input type="text" name="cdr_field_profile" value="<?= e((string) old_input('cdr_field_profile', (string) ($phoneSystem['cdr_field_profile'] ?? '3cx_default'))) ?>">
+                        </label>
+                        <label>
+                            <span>Socket Timeout (seconds)</span>
+                            <input type="number" name="socket_timeout_seconds" min="2" max="120" value="<?= e((string) old_input('socket_timeout_seconds', (string) ($phoneSystem['socket_timeout_seconds'] ?? '10'))) ?>" required>
+                            <?php if ($message = field_error($errors, 'socket_timeout_seconds')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
+                        </label>
+                        <label>
+                            <span>Connection Mode</span>
+                            <input type="text" value="passive_socket" readonly>
+                            <input type="hidden" name="connection_mode" value="passive_socket">
+                        </label>
+                        <label>
+                            <span>CDR Collection</span>
+                            <?php $cdrEnabled = (string) old_input('cdr_enabled', !empty($phoneSystem['cdr_enabled']) ? '1' : '0'); ?>
+                            <select name="cdr_enabled">
+                                <option value="1" <?= $cdrEnabled === '1' ? 'selected' : '' ?>>Enabled</option>
+                                <option value="0" <?= $cdrEnabled === '0' ? 'selected' : '' ?>>Disabled</option>
                             </select>
                         </label>
                     </div>

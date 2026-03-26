@@ -32,6 +32,12 @@ if (submitted('POST')) {
         'timezone' => trim((string) ($_POST['timezone'] ?? 'Australia/Sydney')),
         'status' => (string) ($_POST['status'] ?? 'active'),
         'notes' => trim((string) ($_POST['notes'] ?? '')),
+        'host' => trim((string) ($_POST['host'] ?? '')),
+        'port' => (int) ($_POST['port'] ?? 0),
+        'connection_mode' => 'passive_socket',
+        'cdr_enabled' => isset($_POST['cdr_enabled']) ? 1 : 0,
+        'cdr_field_profile' => trim((string) ($_POST['cdr_field_profile'] ?? '3cx_default')),
+        'socket_timeout_seconds' => (int) ($_POST['socket_timeout_seconds'] ?? 10),
     ];
 
     $errors = [];
@@ -46,9 +52,7 @@ if (submitted('POST')) {
     } elseif ($data['client_id'] > 0 && $repo->codeExistsForClient($data['client_id'], $data['system_code'])) {
         $errors['system_code'] = 'That system code is already in use for this client.';
     }
-    if ($data['base_url'] === '') {
-        $errors['base_url'] = 'Base URL is required.';
-    } elseif (!filter_var($data['base_url'], FILTER_VALIDATE_URL)) {
+    if ($data['base_url'] !== '' && !filter_var($data['base_url'], FILTER_VALIDATE_URL)) {
         $errors['base_url'] = 'Enter a valid base URL.';
     }
     if (!in_array($data['auth_type'], ['basic', 'bearer'], true)) {
@@ -59,6 +63,15 @@ if (submitted('POST')) {
     }
     if ($data['timezone'] === '') {
         $errors['timezone'] = 'Timezone is required.';
+    }
+    if ($data['host'] === '') {
+        $errors['host'] = 'Socket host is required.';
+    }
+    if ($data['port'] < 1 || $data['port'] > 65535) {
+        $errors['port'] = 'Enter a valid TCP port.';
+    }
+    if ($data['socket_timeout_seconds'] < 2 || $data['socket_timeout_seconds'] > 120) {
+        $errors['socket_timeout_seconds'] = 'Socket timeout must be between 2 and 120 seconds.';
     }
     if ($data['auth_type'] === 'basic' && $data['api_username'] === '') {
         $errors['api_username'] = 'API username is required for basic auth.';
@@ -78,8 +91,12 @@ if (submitted('POST')) {
     audit_log(auth_user_id(), $data['client_id'], 'phone_system_created', 'phone_system', (string) $id, 'Created phone system ' . $data['system_name'], [
         'auth_type' => $data['auth_type'],
         'system_code' => $data['system_code'],
+        'host' => $data['host'],
+        'port' => $data['port'],
+        'connection_mode' => 'passive_socket',
+        'cdr_enabled' => (bool) $data['cdr_enabled'],
     ]);
-    flash('success', 'Phone system created successfully.');
+    flash('success', 'Phone system created successfully. Passive socket collection is ready to be configured.');
     redirect('phone-systems/index.php');
 }
 
@@ -94,7 +111,7 @@ require APP_PATH . '/includes/header.php';
 
         <section class="card section-card">
             <h2>New 3CX Phone System</h2>
-            <p>Create a client-scoped 3CX connection record ready for future CDR imports.</p>
+            <p>Create a client-scoped 3CX phone system using passive socket CDR collection.</p>
 
             <form method="post" class="form-stack">
                 <?= csrf_input() ?>
@@ -126,7 +143,7 @@ require APP_PATH . '/includes/header.php';
                         </label>
                         <label>
                             <span>Base URL</span>
-                            <input type="url" name="base_url" value="<?= e((string) old_input('base_url')) ?>" placeholder="https://pbx.example.com" required>
+                            <input type="url" name="base_url" value="<?= e((string) old_input('base_url')) ?>" placeholder="https://pbx.example.com">
                             <?php if ($message = field_error($errors, 'base_url')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
                         </label>
                         <label>
@@ -139,6 +156,43 @@ require APP_PATH . '/includes/header.php';
                             <select name="status">
                                 <option value="active" <?= old_input('status', 'active') === 'active' ? 'selected' : '' ?>>Active</option>
                                 <option value="inactive" <?= old_input('status') === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Passive Socket CDR</h3>
+                    <div class="form-grid">
+                        <label>
+                            <span>Socket Host</span>
+                            <input type="text" name="host" value="<?= e((string) old_input('host')) ?>" placeholder="pbx.internal.example" required>
+                            <?php if ($message = field_error($errors, 'host')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
+                        </label>
+                        <label>
+                            <span>Socket Port</span>
+                            <input type="number" name="port" min="1" max="65535" value="<?= e((string) old_input('port', '33001')) ?>" required>
+                            <?php if ($message = field_error($errors, 'port')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
+                        </label>
+                        <label>
+                            <span>Field Profile</span>
+                            <input type="text" name="cdr_field_profile" value="<?= e((string) old_input('cdr_field_profile', '3cx_default')) ?>">
+                        </label>
+                        <label>
+                            <span>Socket Timeout (seconds)</span>
+                            <input type="number" name="socket_timeout_seconds" min="2" max="120" value="<?= e((string) old_input('socket_timeout_seconds', '10')) ?>" required>
+                            <?php if ($message = field_error($errors, 'socket_timeout_seconds')): ?><span class="field-error"><?= e($message) ?></span><?php endif; ?>
+                        </label>
+                        <label>
+                            <span>Connection Mode</span>
+                            <input type="text" value="passive_socket" readonly>
+                            <input type="hidden" name="connection_mode" value="passive_socket">
+                        </label>
+                        <label>
+                            <span>CDR Collection</span>
+                            <select name="cdr_enabled">
+                                <option value="1" <?= old_input('cdr_enabled', '1') === '1' ? 'selected' : '' ?>>Enabled</option>
+                                <option value="0" <?= old_input('cdr_enabled') === '0' ? 'selected' : '' ?>>Disabled</option>
                             </select>
                         </label>
                     </div>

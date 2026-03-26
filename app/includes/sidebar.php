@@ -6,6 +6,7 @@ $navItems = [
     ['label' => 'Dashboard', 'href' => base_url('dashboard.php'), 'match' => '/dashboard.php', 'show' => true],
     ['label' => 'Clients', 'href' => base_url('clients/index.php'), 'match' => '/clients', 'show' => can_view_clients_nav()],
     ['label' => 'Phone Systems', 'href' => base_url('phone-systems/index.php'), 'match' => '/phone-systems', 'show' => can_view_phone_systems_nav()],
+    ['label' => 'CDR Imports', 'href' => base_url('cdr-imports/index.php'), 'match' => '/cdr-imports', 'show' => can_view_cdr_imports_nav()],
     ['label' => 'Users', 'href' => base_url('users/index.php'), 'match' => '/users', 'show' => can_view_users_nav()],
     ['label' => 'Roles', 'href' => base_url('roles/index.php'), 'match' => '/roles', 'show' => can_access_roles_page()],
     ['label' => 'Audit Logs', 'href' => base_url('audit/index.php'), 'match' => '/audit', 'show' => can_access_audit_page()],
@@ -32,8 +33,13 @@ $navItems = [
     <nav class="sidebar__nav">
         <?php foreach ($navItems as $item): ?>
             <?php if (!$item['show']) { continue; } ?>
-            <?php $isActive = str_contains($currentPath, $item['match']); ?>
-            <a class="<?= $isActive ? 'is-active' : '' ?>" href="<?= e($item['href']) ?>"><?= e($item['label']) ?></a>
+            <?php
+            $hrefPath = rtrim(parse_url((string) $item['href'], PHP_URL_PATH) ?: '', '/');
+            $isActive = $currentPath === $hrefPath || ($item['match'] !== '' && str_contains($currentPath, (string) $item['match']));
+            ?>
+            <a href="<?= e((string) $item['href']) ?>" class="<?= $isActive ? 'is-active' : '' ?>">
+                <?= e((string) $item['label']) ?>
+            </a>
         <?php endforeach; ?>
     </nav>
 </aside>
