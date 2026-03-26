@@ -49,3 +49,10 @@ function require_client_scope(int $clientId): void
         forbid();
     }
 }
+
+function require_phone_system_admin_access(): void
+{
+    if (!can_manage_phone_systems()) {
+        forbid();
+    }
+}

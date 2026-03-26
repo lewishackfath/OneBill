@@ -193,6 +193,16 @@ function can_manage_clients(): bool
     return is_platform_user();
 }
 
+
+function can_manage_phone_systems(): bool
+{
+    return user_has_role(['super_admin', 'platform_admin', 'client_admin']);
+}
+
+function can_view_phone_systems_nav(): bool
+{
+    return can_manage_phone_systems();
+}
 function can_access_roles_page(): bool
 {
     return is_platform_user();

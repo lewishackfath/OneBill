@@ -8,12 +8,14 @@ require_once APP_PATH . '/repositories/UserRepository.php';
 require_once APP_PATH . '/repositories/ClientRepository.php';
 require_once APP_PATH . '/repositories/RoleRepository.php';
 require_once APP_PATH . '/repositories/AuditRepository.php';
+require_once APP_PATH . '/repositories/PhoneSystemRepository.php';
 
 $authUser = auth_user();
 $userRepo = new UserRepository();
 $clientRepo = new ClientRepository();
 $roleRepo = new RoleRepository();
 $auditRepo = new AuditRepository();
+$phoneSystemRepo = new PhoneSystemRepository();
 
 $pageTitle = 'Dashboard';
 $stats = [
@@ -23,6 +25,8 @@ $stats = [
     'clients_active' => $clientRepo->countActiveVisibleForUser($authUser),
     'roles_total' => $roleRepo->countAll(),
     'assigned_clients' => auth_assigned_client_count(),
+    'phone_systems_total' => can_view_phone_systems_nav() ? $phoneSystemRepo->countVisibleForUser($authUser) : 0,
+    'phone_systems_active' => can_view_phone_systems_nav() ? $phoneSystemRepo->countActiveVisibleForUser($authUser) : 0,
 ];
 $recentAudit = is_platform_user() ? $auditRepo->recent(8) : [];
 
@@ -51,6 +55,12 @@ require APP_PATH . '/includes/header.php';
                 <div class="stat-card__label">Assigned Clients</div>
                 <div class="stat-card__value"><?= e((string) $stats['assigned_clients']) ?></div>
             </div>
+            <?php if (can_view_phone_systems_nav()): ?>
+                <div class="card stat-card">
+                    <div class="stat-card__label">Phone Systems</div>
+                    <div class="stat-card__value"><?= e((string) $stats['phone_systems_total']) ?></div>
+                </div>
+            <?php endif; ?>
             <div class="card stat-card">
                 <div class="stat-card__label">Current Role</div>
                 <div class="stat-card__value stat-card__value--small"><?= e(auth_primary_role_name()) ?></div>
@@ -86,6 +96,9 @@ require APP_PATH . '/includes/header.php';
                     <?php if (can_view_users_nav()): ?>
                         <a class="quick-link" href="<?= e(base_url('users/index.php')) ?>">Manage Users</a>
                     <?php endif; ?>
+                    <?php if (can_view_phone_systems_nav()): ?>
+                        <a class="quick-link" href="<?= e(base_url('phone-systems/index.php')) ?>">Manage Phone Systems</a>
+                    <?php endif; ?>
                     <?php if (can_view_clients_nav()): ?>
                         <a class="quick-link" href="<?= e(base_url('clients/index.php')) ?>">Manage Clients</a>
                     <?php endif; ?>
@@ -105,8 +118,8 @@ require APP_PATH . '/includes/header.php';
             <div class="future-cards">
                 <div class="future-card">
                     <h3>Phone Systems</h3>
-                    <p>Per-client 3CX connection records and credential handling.</p>
-                    <span class="badge badge--warning">Next phase</span>
+                    <p>Per-client 3CX connection records and credential handling are now available.</p>
+                    <span class="badge badge--success">Live now</span>
                 </div>
                 <div class="future-card">
                     <h3>CDR Imports</h3>

@@ -5,6 +5,7 @@ $currentPath = rtrim((string) $currentPath, '/');
 $navItems = [
     ['label' => 'Dashboard', 'href' => base_url('dashboard.php'), 'match' => '/dashboard.php', 'show' => true],
     ['label' => 'Clients', 'href' => base_url('clients/index.php'), 'match' => '/clients', 'show' => can_view_clients_nav()],
+    ['label' => 'Phone Systems', 'href' => base_url('phone-systems/index.php'), 'match' => '/phone-systems', 'show' => can_view_phone_systems_nav()],
     ['label' => 'Users', 'href' => base_url('users/index.php'), 'match' => '/users', 'show' => can_view_users_nav()],
     ['label' => 'Roles', 'href' => base_url('roles/index.php'), 'match' => '/roles', 'show' => can_access_roles_page()],
     ['label' => 'Audit Logs', 'href' => base_url('audit/index.php'), 'match' => '/audit', 'show' => can_access_audit_page()],
